@@ -1,76 +1,70 @@
 import os
 import sys
 import json
+import time
+from dotenv import load_dotenv
+from confluent_kafka import Consumer
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
+from logger import logging
+
 sys.path.append("./audio")
 from audio import convert
-import motor.motor_asyncio
-from bson import ObjectId
-from logger import logging
-from typing_extensions import Annotated
-from exception import CustomException
-from typing import Optional, List
-from fastapi import FastAPI, Body, HTTPException
-from confluent_kafka import Consumer, ConsumerGroupState
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
-from pydantic.functional_validators import BeforeValidator
 
+# SqlConfig
+# load_dotenv("./env")
+# db_user = os.environ.get("db_user")
+# db_password = os.environ.get("db_password")
+# db_host = os.environ.get("db_host")
+# db_name = os.environ.get("db_name")
 
-
-# Config 
+# engine = create_engine(f"mysql+pymysql://{db_user}:{db_password}@{db_host}/{db_name}")
+# SessionLocal = sessionmaker(autoflush=False, bind=engine)
+# Base = declarative_base()
+# db = SessionLocal()
+# KafkaConfig
 topic = "Kafkatopic1"
 
-client = motor.motor_asyncio.AsyncIOMotorClient(os.environ.get("mongo"))
-db = client.textflow
-textflow_collection = db.get_collection("textflow")
-
-PyObjectId = Annotated[str, BeforeValidator(str)]
-
-class TextflowModel(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    email: EmailStr = Field(...)
-    video: str = Field(...)
-    audio: str = Field(...)
-    text: str = Field(...)
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_schema_extra={
-            "example" : {
-                "email": "test@gmail.com",
-                "video": "video/input.mp4",
-                "audio": "audio/output.mp3",
-                "text": "Hello world python programme",
-            }
-        },
-    )
-
-
-consumer = Consumer({
-    'bootstrap.servers': '192.168.29.7:9092',
-    'group.id': 'group1',
-    'auto.offset.reset': 'earliest',
-})
+consumer = Consumer(
+    {
+        "bootstrap.servers": "192.168.29.7:9092",
+        "group.id": "group1",
+        "auto.offset.reset": "earliest",
+    }
+)
 
 consumer.subscribe([topic])
 
 
+consume = True
+
 while True:
-    msg = consumer.poll(1.0)
+    if consume:
+        msg = consumer.poll(1.0)
+        
+        if msg is None:
+            continue
+        if msg.error():
+            print("Consumer error: {}".format(msg.error()))
+            continue
     
-    if msg is None:
-        continue
-    if msg.error():
-        print("Consumer error: {}".format(msg.error()))
-        continue
+        data = json.loads(msg.value())
+        logging.info(data)
+        video = data.get("video")
+        email = data.get("email")
 
-    data = json.loads(msg.value())
-    video = data["video"]
-    email = data["email"]
+        consume = False
+    
+        t_instance = convert.Transform()
+        t_instance.create_folder()
+        t_instance.get_object(video)
+        mp3_file = t_instance.convert(video)
+        text = t_instance.transform(video)
+        print(text)
+        logging.info("Process end")
+        consume = True
 
-    t_instance = convert.Transform()
-    t_instance.create_folder()
-    t_instance.get_object(video)
-    mp3_file = t_instance.convert(video)
-    text = t_instance.transform(video)
-    textflow_model = TextflowModel(email=email, video=video, audio=mp3_file, text=text)
-    textflow_collection.insert_one(textflow_model.dict())
+
+

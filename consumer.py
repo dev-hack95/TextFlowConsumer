@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-import time
+import warnings
 from dotenv import load_dotenv
 from confluent_kafka import Consumer
 from sqlalchemy import create_engine
@@ -18,6 +18,7 @@ from audio import convert
 
 # Config
 load_dotenv("./env")
+warnings.filterwarnings("ignore")
 Base = declarative_base()
 
 class DBLocalSession:

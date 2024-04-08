@@ -13,8 +13,8 @@ class Transform:
         self.bucketname = "textflow"
         self.client = Minio(
             endpoint="192.168.29.7:9000",
-            access_key="b8vYToqP0K6INKz10tLb",
-            secret_key="iRkNVkXW5O1BogbaLSrTHqNPMauVKnpBAGXS9I2J",
+            access_key="IttOENRzKfhlYjyve9lj",
+            secret_key="VKbOwCugUfuDeRrqiXaGCWruYs6laaE2o4lXSDi2",
             secure=False,
         )
 
